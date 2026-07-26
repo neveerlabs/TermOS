@@ -1,5 +1,9 @@
 [
   {
+    "version": "v4.2.7",
+    "changes": "New features & enhancements:\n- New command: --tocket (auto-clone Tocket repo, virtual environment setup, dependency install, run main.py) with clean, minimal logging\n- New command: --devices (display device info: model, device type, IP, screen resolution, RAM, storage, network status, language, timezone) in a compact table\n- Improved screen resolution detection: multiple fallback methods (wm size, dumpsys, framebuffer) to avoid 'Unknown'\n- Refined --devices table layout for better visual alignment\n- Added --tocket and --devices to syntax highlighting and help menu\n- Internal robustness: strict error handling for all new functions, graceful fallbacks for missing tools\n- Version bump to v4.2.7"
+  },
+  {
     "version": "v4.2.3",
     "changes": "Banner centering fix:\n- Fixed ASCII art banner alignment for proper center positioning\n- Removed aggressive whitespace trimming that caused misalignment\n- Preserved original ASCII art spacing for consistent display\n- Improved terminal width calculation for accurate centering"
   },

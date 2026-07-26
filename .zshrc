@@ -28,7 +28,7 @@ ZSH_HIGHLIGHT_STYLES[path_prefix]='fg=white'
 ZSH_HIGHLIGHT_STYLES[globbing]='fg=magenta'
 
 typeset -A ZSH_HIGHLIGHT_PATTERNS
-ZSH_HIGHLIGHT_PATTERNS=('--help' 'fg=cyan,bold' '--version' 'fg=cyan,bold' '--updates' 'fg=cyan,bold' '--update' 'fg=cyan,bold' '--changelog' 'fg=cyan,bold' '--location' 'fg=cyan,bold' '--schedule' 'fg=cyan,bold' '--tocket' 'fg=cyan,bold')
+ZSH_HIGHLIGHT_PATTERNS=('--help' 'fg=cyan,bold' '--version' 'fg=cyan,bold' '--updates' 'fg=cyan,bold' '--update' 'fg=cyan,bold' '--changelog' 'fg=cyan,bold' '--location' 'fg=cyan,bold' '--schedule' 'fg=cyan,bold' '--tocket' 'fg=cyan,bold' '--devices' 'fg=cyan,bold')
 
 source ~/.zsh/zsh-autocomplete/zsh-autocomplete.plugin.zsh
 zstyle ':autocomplete:*' min-input 1
@@ -517,6 +517,7 @@ command_not_found_handler() {
             printf '%s\n' "  --location      Show current location data"
             printf '%s\n' "  --schedule      Show prayer times schedule"
             printf '%s\n' "  --tocket        Run Tocket tool (auto-setup if needed)"
+            printf '%s\n' "  --devices       Show device information"
             return 0
             ;;
         --version)
@@ -612,6 +613,10 @@ command_not_found_handler() {
             ;;
         --tocket)
             _tocket_handler
+            return 0
+            ;;
+        --devices)
+            _devices_handler
             return 0
             ;;
         *)
@@ -991,4 +996,92 @@ _tocket_handler() {
         return 1
     fi
     return 0
+}
+
+_devices_handler() {
+    local model device ip screen ram storage network lang tz
+
+    model=$(getprop ro.product.model 2>/dev/null || echo "Unknown")
+    [[ -z "$model" ]] && model="Unknown"
+
+    local char
+    char=$(getprop ro.build.characteristics 2>/dev/null || echo "default")
+    if [[ "$char" == "tablet" ]]; then
+        device="tablet"
+    else
+        device="mobile"
+    fi
+
+    ip=$(ifconfig wlan0 2>/dev/null | grep 'inet ' | awk '{print $2}')
+    [[ -z "$ip" ]] && ip=$(ifconfig 2>/dev/null | grep 'inet ' | grep -v 127 | awk '{print $2}' | head -1)
+    [[ -z "$ip" ]] && ip="N/A"
+
+    if command -v wm >/dev/null 2>&1; then
+        local size_line
+        size_line=$(wm size 2>/dev/null | grep 'Physical size')
+        if [[ -n "$size_line" ]]; then
+            screen=$(echo "$size_line" | awk '{print $3}')
+        fi
+    fi
+    if [[ -z "$screen" || "$screen" == "Unknown" ]]; then
+        if command -v dumpsys >/dev/null 2>&1; then
+            local init_line
+            init_line=$(dumpsys window displays 2>/dev/null | grep -Eo 'init=[0-9]+x[0-9]+' | head -1)
+            if [[ -n "$init_line" ]]; then
+                screen="${init_line#init=}"
+            fi
+        fi
+    fi
+    if [[ -z "$screen" || "$screen" == "Unknown" ]]; then
+        if [[ -f /sys/class/graphics/fb0/virtual_size ]]; then
+            local fb_size
+            fb_size=$(cat /sys/class/graphics/fb0/virtual_size 2>/dev/null)
+            if [[ -n "$fb_size" ]]; then
+                local w h
+                w=$(echo "$fb_size" | awk '{print $1}')
+                h=$(echo "$fb_size" | awk '{print $2}')
+                screen="${w}x${h}"
+            fi
+        fi
+    fi
+    [[ -z "$screen" ]] && screen="Unknown"
+
+    local ram_kb ram_gb
+    ram_kb=$(grep MemTotal /proc/meminfo 2>/dev/null | awk '{print $2}')
+    if [[ -n "$ram_kb" && "$ram_kb" -gt 0 ]]; then
+        ram_gb=$(echo "scale=1; $ram_kb / 1048576" | bc 2>/dev/null || echo "?")
+        ram="${ram_gb} GB"
+    else
+        ram="Unknown"
+    fi
+
+    if df -h /data >/dev/null 2>&1; then
+        storage=$(df -h /data | awk 'NR==2 {print $2}')
+        [[ -z "$storage" ]] && storage="Unknown"
+    else
+        storage="Unknown"
+    fi
+
+    if [[ "$ip" != "N/A" ]] && ping -c 1 -W 1 8.8.8.8 >/dev/null 2>&1; then
+        network="connected"
+    else
+        network="disconnected"
+    fi
+
+    lang="${LANG:-Unknown}"
+    tz=$(getprop persist.sys.timezone 2>/dev/null || date +%Z 2>/dev/null || echo "Unknown")
+
+    printf '╔════════════════════════════════════════════════════════════╗\n'
+    printf '║                     DEVICE INFORMATION                     ║\n'
+    printf '╠════════════════════════════════════════════════════════════╣\n'
+    printf '║ %-12s : %-42s ║\n' "Model" "$model"
+    printf '║ %-12s : %-42s ║\n' "Device" "$device"
+    printf '║ %-12s : %-42s ║\n' "IP" "$ip"
+    printf '║ %-12s : %-42s ║\n' "Screen" "$screen"
+    printf '║ %-12s : %-42s ║\n' "RAM" "$ram"
+    printf '║ %-12s : %-42s ║\n' "Storage" "$storage"
+    printf '║ %-12s : %-42s ║\n' "Network" "$network"
+    printf '║ %-12s : %-42s ║\n' "Language" "$lang"
+    printf '║ %-12s : %-42s ║\n' "Timezone" "$tz"
+    printf '╚════════════════════════════════════════════════════════════╝\n'
 }

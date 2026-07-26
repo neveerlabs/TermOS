@@ -28,7 +28,7 @@ ZSH_HIGHLIGHT_STYLES[path_prefix]='fg=white'
 ZSH_HIGHLIGHT_STYLES[globbing]='fg=magenta'
 
 typeset -A ZSH_HIGHLIGHT_PATTERNS
-ZSH_HIGHLIGHT_PATTERNS=('--help' 'fg=cyan,bold' '--version' 'fg=cyan,bold' '--updates' 'fg=cyan,bold' '--update' 'fg=cyan,bold' '--changelog' 'fg=cyan,bold' '--location' 'fg=cyan,bold' '--schedule' 'fg=cyan,bold')
+ZSH_HIGHLIGHT_PATTERNS=('--help' 'fg=cyan,bold' '--version' 'fg=cyan,bold' '--updates' 'fg=cyan,bold' '--update' 'fg=cyan,bold' '--changelog' 'fg=cyan,bold' '--location' 'fg=cyan,bold' '--schedule' 'fg=cyan,bold' '--tocket' 'fg=cyan,bold')
 
 source ~/.zsh/zsh-autocomplete/zsh-autocomplete.plugin.zsh
 zstyle ':autocomplete:*' min-input 1
@@ -516,6 +516,7 @@ command_not_found_handler() {
             printf '%s\n' "  --changelog     Show changelog for current version"
             printf '%s\n' "  --location      Show current location data"
             printf '%s\n' "  --schedule      Show prayer times schedule"
+            printf '%s\n' "  --tocket        Run Tocket tool (auto-setup if needed)"
             return 0
             ;;
         --version)
@@ -607,6 +608,10 @@ command_not_found_handler() {
             else
                 printf 'Schedule not available yet. It will be generated automatically.\n'
             fi
+            return 0
+            ;;
+        --tocket)
+            _tocket_handler
             return 0
             ;;
         *)
@@ -917,4 +922,73 @@ _auto_update_schedule() {
     fi
 
     _schedule_prayer_alarms
+}
+
+_tocket_handler() {
+    local TOCKET_DIR="$HOME/Tocket"
+    local MAIN_PY="$TOCKET_DIR/Tocket/main.py"
+    local REQ_FILE="$TOCKET_DIR/Tocket/requirements.txt"
+    local VENV_DIR=""
+    local PYTHON_BIN=""
+    local PIP_BIN=""
+
+    if [[ ! -d "$TOCKET_DIR" ]]; then
+        printf 'Cloning Tocket repository...\n'
+        if ! git clone --quiet https://github.com/neveerlabs/Tocket.git "$TOCKET_DIR" 2>/dev/null; then
+            printf 'Error: Failed to clone Tocket repository.\n'
+            return 1
+        fi
+        printf 'Clone complete.\n'
+    fi
+
+    if [[ ! -f "$MAIN_PY" ]]; then
+        printf 'Error: %s not found. The repository might be incomplete.\n' "$MAIN_PY"
+        return 1
+    fi
+
+    if [[ -n "$VIRTUAL_ENV" && -x "$VIRTUAL_ENV/bin/python" ]]; then
+        VENV_DIR="$VIRTUAL_ENV"
+        PYTHON_BIN="$VENV_DIR/bin/python"
+        PIP_BIN="$VENV_DIR/bin/pip"
+        printf 'Using virtual environment: %s\n' "$VENV_DIR"
+    elif [[ -d "$HOME/venv" && -x "$HOME/venv/bin/python" ]]; then
+        VENV_DIR="$HOME/venv"
+        PYTHON_BIN="$VENV_DIR/bin/python"
+        PIP_BIN="$VENV_DIR/bin/pip"
+        printf 'Using virtual environment: %s\n' "$VENV_DIR"
+    else
+        printf 'Creating virtual environment venv...\n'
+        if ! python3 -m venv "$HOME/venv" 2>/dev/null; then
+            printf 'Error: Failed to create virtual environment.\n'
+            return 1
+        fi
+        VENV_DIR="$HOME/venv"
+        PYTHON_BIN="$VENV_DIR/bin/python"
+        PIP_BIN="$VENV_DIR/bin/pip"
+        printf 'venv created.\n'
+    fi
+
+    if ! "$PYTHON_BIN" -m pip --version >/dev/null 2>&1; then
+        printf 'Error: pip not found in environment.\n'
+        return 1
+    fi
+
+    if [[ -f "$REQ_FILE" ]]; then
+        printf 'Installing requirements...\n'
+        if ! "$PYTHON_BIN" -m pip install -r "$REQ_FILE" --quiet 2>/dev/null; then
+            printf 'Error: Failed to install requirements.\n'
+            return 1
+        fi
+        printf 'Requirements installed.\n'
+    else
+        printf 'Warning: requirements.txt not found.\n'
+    fi
+
+    printf 'Launching Tocket...\n'
+    if ! "$PYTHON_BIN" "$MAIN_PY"; then
+        local exit_code=$?
+        printf 'Error: Tocket exited with code %d.\n' "$exit_code"
+        return 1
+    fi
+    return 0
 }

@@ -28,7 +28,7 @@ ZSH_HIGHLIGHT_STYLES[function]='fg=cyan,bold'
 ZSH_HIGHLIGHT_STYLES[single-hyphen-option]='fg=yellow'
 ZSH_HIGHLIGHT_STYLES[double-hyphen-option]='fg=yellow'
 ZSH_HIGHLIGHT_STYLES[path]='fg=white,bold'
-ZSH_HIGHLIGHT_STYLES[path_prefix]='fg=white'
+ZSH_HIGHLIGHT_STYLES[path_prefix]='fg=white,bold'
 ZSH_HIGHLIGHT_STYLES[globbing]='fg=magenta'
 
 typeset -A ZSH_HIGHLIGHT_PATTERNS

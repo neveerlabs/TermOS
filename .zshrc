@@ -266,17 +266,7 @@ else:
             printf '%s\n' "$changes"
             return 0
         fi
-        local cols
-        cols=$(stty size 2>/dev/null | awk '{print $2}')
-        [[ -z "$cols" ]] && cols=80
-        local header="Changelog ${version_clean}"
-        local header_len=${#header}
-        local pad=$(( (cols - header_len) / 2 ))
-        (( pad < 0 )) && pad=0
-        local line
-        line=$(printf '\u2500%.0s' $(seq 1 $cols))
-        printf "%*s\e[3m%s\e[0m\n" "$pad" "" "$header"
-        printf '%s\n' "$line"
+        _print_styled_header "Changelog ${version_clean}"
         printf '%s\n' "$changes"
     fi
 }
@@ -332,19 +322,23 @@ else:
             printf '%s\n' "$changes"
             return 0
         fi
-        local cols
-        cols=$(stty size 2>/dev/null | awk '{print $2}')
-        [[ -z "$cols" ]] && cols=80
-        local header="Changelog ${version_clean}"
-        local header_len=${#header}
-        local pad=$(( (cols - header_len) / 2 ))
-        (( pad < 0 )) && pad=0
-        local line
-        line=$(printf '\u2500%.0s' $(seq 1 $cols))
-        printf "%*s\e[3m%s\e[0m\n" "$pad" "" "$header"
-        printf '%s\n' "$line"
+        _print_styled_header "Changelog ${version_clean}"
         printf '%s\n' "$changes"
     fi
+}
+
+_print_styled_header() {
+    local header="$1"
+    local cols
+    cols=$(stty size 2>/dev/null | awk '{print $2}')
+    [[ -z "$cols" ]] && cols=80
+    local header_len=${#header}
+    local pad=$(( (cols - header_len) / 2 ))
+    (( pad < 0 )) && pad=0
+    local line
+    line=$(printf '\u2500%.0s' $(seq 1 $cols))
+    printf "%*s\e[3m%s\e[0m\n" "$pad" "" "$header"
+    printf '%s\n' "$line"
 }
 
 _update_plugins() {
@@ -587,7 +581,7 @@ command_not_found_handler() {
             printf '%s\n' "  --update        Update configuration files"
             printf '%s\n' "  --reconfig      Re-run setup script"
             printf '%s\n' "  --changelog     Show changelog for current version"
-            printf '%s\n' "  --location      Show current location data"
+            printf '%s\n' "  --location      Show real-time location data"
             printf '%s\n' "  --schedule      Show prayer times schedule"
             printf '%s\n' "  --tocket        Run Tocket tool (auto-setup if needed)"
             printf '%s\n' "  --devices       Show device information"
@@ -626,62 +620,11 @@ command_not_found_handler() {
             return 0
             ;;
         --location)
-            if [[ -f "$HOME/.termux/location.json" ]]; then
-                cat "$HOME/.termux/location.json" | node -e "
-                    const d = JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'));
-                    console.log('╔══════════════════════════════════════╗');
-                    console.log('║        CURRENT LOCATION DATA        ║');
-                    console.log('╠══════════════════════════════════════╣');
-                    console.log('║ Coordinates : ' + d.latitude + ', ' + d.longitude);
-                    console.log('║ Accuracy    : ' + d.accuracy + ' m');
-                    if (d.address) {
-                        if (d.address.road) console.log('║ Street      : ' + (d.address.house_number||'') + ' ' + d.address.road);
-                        if (d.address.village || d.address.suburb) console.log('║ Village     : ' + (d.address.village || d.address.suburb));
-                        if (d.address.county || d.address.district) console.log('║ District    : ' + (d.address.county || d.address.district));
-                        if (d.address.city) console.log('║ City        : ' + d.address.city);
-                        if (d.address.state) console.log('║ Province    : ' + d.address.state);
-                        if (d.address.country) console.log('║ Country     : ' + d.address.country);
-                        if (d.address.postcode) console.log('║ Postal Code : ' + d.address.postcode);
-                    }
-                    console.log('╚══════════════════════════════════════╝');
-                " 2>/dev/null || printf 'Failed to display location.\n'
-            else
-                printf 'Location data not available. Please wait for automatic fetch or run schedule update.\n'
-            fi
+            _location_realtime_handler
             return 0
             ;;
         --schedule)
-            if [[ -f "$HOME/.termux/schedule.json" ]]; then
-                cat "$HOME/.termux/schedule.json" | node -e "
-                    const d = JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'));
-                    console.log('╔══════════════════════════════════════════════════╗');
-                    console.log('║              PRAYER TIMES SCHEDULE              ║');
-                    console.log('╠══════════════════════════════════════════════════╣');
-                    console.log('║ Date        : ' + d.date);
-                    console.log('║ Generated   : ' + d.generated_at);
-                    if (d.location) {
-                        const loc = d.location;
-                        console.log('║ Coordinates : ' + loc.latitude + ', ' + loc.longitude);
-                        if (loc.address) {
-                            const addr = loc.address;
-                            if (addr.road) console.log('║ Street      : ' + (addr.house_number||'') + ' ' + addr.road);
-                            if (addr.village || addr.suburb) console.log('║ Village     : ' + (addr.village || addr.suburb));
-                            if (addr.county || addr.district) console.log('║ District    : ' + (addr.county || addr.district));
-                            if (addr.city) console.log('║ City        : ' + addr.city);
-                        }
-                    }
-                    console.log('╠══════════════════════════════════════════════════╣');
-                    const t = d.times;
-                    console.log('║  Fajr    : ' + t.fajr);
-                    console.log('║  Dhuhr   : ' + t.dhuhr);
-                    console.log('║  Asr     : ' + t.asr);
-                    console.log('║  Maghrib : ' + t.maghrib);
-                    console.log('║  Isha    : ' + t.isha);
-                    console.log('╚══════════════════════════════════════════════════╝');
-                " 2>/dev/null || printf 'Failed to display schedule.\n'
-            else
-                printf 'Schedule not available yet. It will be generated automatically.\n'
-            fi
+            _schedule_display_handler
             return 0
             ;;
         --tocket)
@@ -1157,4 +1100,129 @@ _devices_handler() {
     printf '║ %-12s : %-42s ║\n' "Language" "$lang"
     printf '║ %-12s : %-42s ║\n' "Timezone" "$tz"
     printf '╚════════════════════════════════════════════════════════════╝\n'
+}
+
+_spinner() {
+    local msg="$1"
+    local chars="⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+    while true; do
+        for (( i=0; i<${#chars}; i++ )); do
+            printf "\r%s %s" "${chars:$i:1}" "$msg"
+            sleep 0.1
+        done
+    done
+}
+
+_location_realtime_handler() {
+    if ! command -v termux-location >/dev/null 2>&1; then
+        printf 'Error: termux-location not available. Please install Termux:API.\n'
+        return 1
+    fi
+    if ! command -v curl >/dev/null 2>&1; then
+        printf 'Error: curl not available.\n'
+        return 1
+    fi
+    if ! command -v node >/dev/null 2>&1; then
+        printf 'Error: node not available.\n'
+        return 1
+    fi
+
+    _spinner "Fetching location..." &
+    local spinner_pid=$!
+
+    local location_json
+    location_json=$(termux-location 2>/dev/null) || true
+    kill "$spinner_pid" 2>/dev/null
+    wait "$spinner_pid" 2>/dev/null
+    printf '\r\033[K'
+
+    if [[ -z "$location_json" ]]; then
+        printf 'Error: Unable to fetch location. Ensure GPS is enabled and permissions are granted.\n'
+        return 1
+    fi
+
+    local lat lon acc
+    local parsed
+    parsed=$(node -e "
+        const d = JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'));
+        if (d.error) { console.log('ERROR:' + d.error); process.exit(1); }
+        console.log(d.latitude + ',' + d.longitude + ',' + (d.accuracy || 999));
+    " <<< "$location_json" 2>/dev/null) || {
+        printf 'Error: Invalid location data received.\n'
+        return 1
+    }
+    IFS=',' read -r lat lon acc <<< "$parsed"
+
+    _spinner "Reverse geocoding..." &
+    spinner_pid=$!
+    local address_json
+    address_json=$(curl -sS --max-time 10 "https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&addressdetails=1&accept-language=id" 2>/dev/null || echo '{}')
+    kill "$spinner_pid" 2>/dev/null
+    wait "$spinner_pid" 2>/dev/null
+    printf '\r\033[K'
+
+    local road house_number village suburb county district city state country postcode
+    road=$(echo "$address_json" | node -e "const a=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')).address||{}; process.stdout.write(a.road||'')" 2>/dev/null)
+    house_number=$(echo "$address_json" | node -e "const a=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')).address||{}; process.stdout.write(a.house_number||'')" 2>/dev/null)
+    village=$(echo "$address_json" | node -e "const a=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')).address||{}; process.stdout.write(a.village||a.suburb||'')" 2>/dev/null)
+    county=$(echo "$address_json" | node -e "const a=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')).address||{}; process.stdout.write(a.county||a.district||'')" 2>/dev/null)
+    city=$(echo "$address_json" | node -e "const a=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')).address||{}; process.stdout.write(a.city||a.town||'')" 2>/dev/null)
+    state=$(echo "$address_json" | node -e "const a=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')).address||{}; process.stdout.write(a.state||'')" 2>/dev/null)
+    country=$(echo "$address_json" | node -e "const a=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')).address||{}; process.stdout.write(a.country||'')" 2>/dev/null)
+    postcode=$(echo "$address_json" | node -e "const a=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')).address||{}; process.stdout.write(a.postcode||'')" 2>/dev/null)
+
+    _print_styled_header "Current Location"
+
+    printf 'Coordinates : %s, %s\n' "$lat" "$lon"
+    printf 'Accuracy    : %s m\n' "$acc"
+    [[ -n "$road" ]] && printf 'Street      : %s %s\n' "$house_number" "$road"
+    [[ -n "$village" ]] && printf 'Village     : %s\n' "$village"
+    [[ -n "$county" ]] && printf 'District    : %s\n' "$county"
+    [[ -n "$city" ]] && printf 'City        : %s\n' "$city"
+    [[ -n "$state" ]] && printf 'Province    : %s\n' "$state"
+    [[ -n "$country" ]] && printf 'Country     : %s\n' "$country"
+    [[ -n "$postcode" ]] && printf 'Postal Code : %s\n' "$postcode"
+    echo
+}
+
+_schedule_display_handler() {
+    if [[ ! -f "$SCHEDULE_FILE" ]]; then
+        printf 'Schedule not available yet. It will be generated automatically.\n'
+        return 1
+    fi
+
+    local schedule_json
+    schedule_json=$(cat "$SCHEDULE_FILE" 2>/dev/null)
+    if [[ -z "$schedule_json" ]]; then
+        printf 'Error: Unable to read schedule data.\n'
+        return 1
+    fi
+
+    _print_styled_header "Prayer Times Schedule"
+
+    local date_sched times fajr dhuhr asr maghrib isha
+    date_sched=$(echo "$schedule_json" | node -e "process.stdout.write(JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')).date)" 2>/dev/null)
+    times=$(echo "$schedule_json" | node -e "const t=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')).times; process.stdout.write(t.fajr+','+t.dhuhr+','+t.asr+','+t.maghrib+','+t.isha)" 2>/dev/null)
+    IFS=',' read -r fajr dhuhr asr maghrib isha <<< "$times"
+
+    printf 'Date        : %s\n' "$date_sched"
+    printf 'Fajr        : %s\n' "$fajr"
+    printf 'Dhuhr       : %s\n' "$dhuhr"
+    printf 'Asr         : %s\n' "$asr"
+    printf 'Maghrib     : %s\n' "$maghrib"
+    printf 'Isha        : %s\n' "$isha"
+
+    local road house_number village county city
+    road=$(echo "$schedule_json" | node -e "const a=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')).location.address||{}; process.stdout.write(a.road||'')" 2>/dev/null)
+    house_number=$(echo "$schedule_json" | node -e "const a=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')).location.address||{}; process.stdout.write(a.house_number||'')" 2>/dev/null)
+    village=$(echo "$schedule_json" | node -e "const a=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')).location.address||{}; process.stdout.write(a.village||a.suburb||'')" 2>/dev/null)
+    county=$(echo "$schedule_json" | node -e "const a=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')).location.address||{}; process.stdout.write(a.county||a.district||'')" 2>/dev/null)
+    city=$(echo "$schedule_json" | node -e "const a=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')).location.address||{}; process.stdout.write(a.city||a.town||'')" 2>/dev/null)
+
+    printf '\nLocation used for schedule:\n'
+    [[ -n "$road" ]] && printf 'Street      : %s %s\n' "$house_number" "$road"
+    [[ -n "$village" ]] && printf 'Village     : %s\n' "$village"
+    [[ -n "$county" ]] && printf 'District    : %s\n' "$county"
+    [[ -n "$city" ]] && printf 'City        : %s\n' "$city"
+    echo
 }

@@ -213,8 +213,9 @@ _show_changelog_since() {
             return 1
         fi
     fi
+    local output
     if command -v python3 >/dev/null 2>&1; then
-        python3 -c "
+        output=$(python3 -c "
 import json, sys
 entries = json.loads(sys.stdin.read())
 since = sys.argv[1]
@@ -227,12 +228,40 @@ for e in entries:
         latest = e
         break
 if latest:
-    print(f\"Version {latest['version']}:\n{latest['changes']}\")
+    print(latest['version'])
+    print(latest['changes'])
 else:
+    print('')
     print('No recent changes.')
-" "$since_version" <<< "$changelog_json" 2>/dev/null || printf 'Failed to parse changelog.\n'
+" "$since_version" <<< "$changelog_json" 2>/dev/null) || {
+        printf 'Failed to parse changelog.\n'
+        return 1
+    }
     else
         printf 'Python3 required to display changelog.\n'
+        return 1
+    fi
+    if [[ -n "$output" ]]; then
+        local version_clean
+        version_clean=$(echo "$output" | head -1)
+        local changes
+        changes=$(echo "$output" | tail -n +2)
+        if [[ "$version_clean" == "No recent changes." || -z "$version_clean" ]]; then
+            printf '%s\n' "$changes"
+            return 0
+        fi
+        local cols
+        cols=$(stty size 2>/dev/null | awk '{print $2}')
+        [[ -z "$cols" ]] && cols=80
+        local header="Changelog ${version_clean}"
+        local header_len=${#header}
+        local pad=$(( (cols - header_len) / 2 ))
+        (( pad < 0 )) && pad=0
+        local line
+        line=$(printf '\u2500%.0s' $(seq 1 $cols))
+        printf "%*s\e[3m%s\e[0m\n" "$pad" "" "$header"
+        printf '%s\n' "$line"
+        printf '%s\n' "$changes"
     fi
 }
 
@@ -253,8 +282,9 @@ _show_current_changelog() {
             return 1
         fi
     fi
+    local output
     if command -v python3 >/dev/null 2>&1; then
-        python3 -c "
+        output=$(python3 -c "
 import json, sys
 entries = json.loads(sys.stdin.read())
 current_version = sys.argv[1]
@@ -264,13 +294,40 @@ for e in entries:
         found = e
         break
 if found:
-    print(f\"Version {found['version']}:\")
+    print(found['version'])
     print(found['changes'])
 else:
+    print('')
     print('No changelog found for current version.')
-" "$TERMUX_CONFIG_VERSION" <<< "$changelog_json" 2>/dev/null || printf 'Failed to parse changelog.\n'
+" "$TERMUX_CONFIG_VERSION" <<< "$changelog_json" 2>/dev/null) || {
+        printf 'Failed to parse changelog.\n'
+        return 1
+    }
     else
         printf 'Python3 required to display changelog.\n'
+        return 1
+    fi
+    if [[ -n "$output" ]]; then
+        local version_clean
+        version_clean=$(echo "$output" | head -1)
+        local changes
+        changes=$(echo "$output" | tail -n +2)
+        if [[ "$version_clean" == "No changelog found for current version." || -z "$version_clean" ]]; then
+            printf '%s\n' "$changes"
+            return 0
+        fi
+        local cols
+        cols=$(stty size 2>/dev/null | awk '{print $2}')
+        [[ -z "$cols" ]] && cols=80
+        local header="Changelog ${version_clean}"
+        local header_len=${#header}
+        local pad=$(( (cols - header_len) / 2 ))
+        (( pad < 0 )) && pad=0
+        local line
+        line=$(printf '\u2500%.0s' $(seq 1 $cols))
+        printf "%*s\e[3m%s\e[0m\n" "$pad" "" "$header"
+        printf '%s\n' "$line"
+        printf '%s\n' "$changes"
     fi
 }
 

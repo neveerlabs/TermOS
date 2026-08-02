@@ -362,6 +362,12 @@ _perform_update() {
     _download_with_progress "$base_url/Changelog.json" "$TERMUX_CONFIG_DIR/Changelog.json" || true
     _download_with_progress "$base_url/README.md" "$TERMUX_CONFIG_DIR/README.md" || true
     _download_with_progress "$base_url/config.sh" "$TERMUX_CONFIG_DIR/config.sh" || true
+    _download_with_progress "$base_url/termux.properties" "$HOME/.termux/termux.properties" || true
+    if command -v termux-reload-settings >/dev/null 2>&1; then
+        termux-reload-settings 2>/dev/null || true
+    else
+        printf '\nNote: Restart Termux or run termux-reload-settings to apply new properties.\n'
+    fi
     _update_plugins
     if [[ $update_failed -eq 0 ]]; then
         printf '\nUpdate complete. Restart Termux to apply changes.\n'

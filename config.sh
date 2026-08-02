@@ -87,6 +87,13 @@ else
     fi
 fi
 
+if [ -f "$SCRIPT_DIR/termux.properties" ]; then
+    cp "$SCRIPT_DIR/termux.properties" ~/.termux/termux.properties
+    echo "[+] termux.properties copied from script directory."
+else
+    echo "[!] termux.properties not found in script directory, skipping."
+fi
+
 VENV_PATH="$HOME/venv"
 VENV_CREATED=false
 if [ ! -d "$VENV_PATH" ]; then

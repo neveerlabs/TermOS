@@ -84,11 +84,6 @@ if [[ "$ENABLE_MYSQL" == "yes" ]]; then
     fi
 fi
 
-if [[ -z "$_TERMUX_WELCOME_SHOWN" ]]; then
-    printf 'Welcome to Termux!\n\n'
-    export _TERMUX_WELCOME_SHOWN=1
-fi
-
 TERMUX_CONFIG_DIR="$HOME/Termux-Config"
 _update_check_done=0
 
@@ -468,36 +463,7 @@ show_banner() {
         printf "%*s\e[1;37m%s\e[0m\n" "$padding" "" "$line"
     done
 
-    local ram_info
-    if [[ -f /proc/meminfo ]]; then
-        local ram_total=$(grep MemTotal /proc/meminfo | awk '{print $2}')
-        local ram_avail=$(grep MemAvailable /proc/meminfo | awk '{print $2}')
-        if [[ -n "$ram_total" && -n "$ram_avail" ]]; then
-            local ram_used=$(( (ram_total - ram_avail) / 1024 ))
-            local ram_total_mb=$(( ram_total / 1024 ))
-            ram_info="${ram_used}M/${ram_total_mb}M"
-        else
-            ram_info="N/A"
-        fi
-    else
-        ram_info="N/A"
-    fi
-
-    local storage_info="N/A"
-    if df -h /sdcard >/dev/null 2>&1; then
-        storage_info=$(df -h /sdcard | awk 'NR==2 {print $3 "/" $2}')
-    elif df -h /storage/emulated/0 >/dev/null 2>&1; then
-        storage_info=$(df -h /storage/emulated/0 | awk 'NR==2 {print $3 "/" $2}')
-    elif df -h /data >/dev/null 2>&1; then
-        storage_info=$(df -h /data | awk 'NR==2 {print $3 "/" $2}')
-    fi
-
-    local ip
-    ip=$(ifconfig wlan0 2>/dev/null | grep 'inet ' | awk '{print $2}')
-    [[ -z "$ip" ]] && ip=$(ifconfig 2>/dev/null | grep 'inet ' | grep -v 127 | awk '{print $2}' | head -1)
-    [[ -z "$ip" ]] && ip="N/A"
-
-    local info="RAM: $ram_info | Storage: $storage_info | IP: $ip"
+    local info="(c) 2026 Neverlabs. All rights reserved."
     local info_len=${#info}
     local padding=$(( (cols - info_len) / 2 ))
     (( padding < 0 )) && padding=0
@@ -1032,8 +998,12 @@ _devices_handler() {
         device="mobile"
     fi
 
-    ip=$(ifconfig wlan0 2>/dev/null | grep 'inet ' | awk '{print $2}')
-    [[ -z "$ip" ]] && ip=$(ifconfig 2>/dev/null | grep 'inet ' | grep -v 127 | awk '{print $2}' | head -1)
+    if command -v ifconfig >/dev/null 2>&1; then
+        ip=$(ifconfig wlan0 2>/dev/null | grep 'inet ' | awk '{print $2}')
+        [[ -z "$ip" ]] && ip=$(ifconfig 2>/dev/null | grep 'inet ' | grep -v 127 | awk '{print $2}' | head -1)
+    else
+        ip="N/A"
+    fi
     [[ -z "$ip" ]] && ip="N/A"
 
     local ram_kb ram_gb
@@ -1052,8 +1022,12 @@ _devices_handler() {
         storage="Unknown"
     fi
 
-    if [[ "$ip" != "N/A" ]] && ping -c 1 -W 1 8.8.8.8 >/dev/null 2>&1; then
-        network="connected"
+    if [[ "$ip" != "N/A" ]] && command -v ping >/dev/null 2>&1; then
+        if ping -c 1 -W 1 8.8.8.8 >/dev/null 2>&1; then
+            network="connected"
+        else
+            network="disconnected"
+        fi
     else
         network="disconnected"
     fi

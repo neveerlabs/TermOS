@@ -6,6 +6,7 @@ setopt SHARE_HISTORY
 setopt HIST_IGNORE_ALL_DUPS
 setopt HIST_IGNORE_SPACE
 setopt NO_NOTIFY
+setopt INTERACTIVE_COMMENTS
 
 autoload -Uz compinit
 compinit
@@ -1015,7 +1016,10 @@ _tocket_handler() {
 }
 
 _devices_handler() {
-    local model device ip screen ram storage network lang tz
+    local brand model device ip ram storage network lang tz
+
+    brand=$(getprop ro.product.brand 2>/dev/null || getprop ro.product.manufacturer 2>/dev/null || echo "Unknown")
+    [[ -z "$brand" ]] && brand="Unknown"
 
     model=$(getprop ro.product.model 2>/dev/null || echo "Unknown")
     [[ -z "$model" ]] && model="Unknown"
@@ -1031,36 +1035,6 @@ _devices_handler() {
     ip=$(ifconfig wlan0 2>/dev/null | grep 'inet ' | awk '{print $2}')
     [[ -z "$ip" ]] && ip=$(ifconfig 2>/dev/null | grep 'inet ' | grep -v 127 | awk '{print $2}' | head -1)
     [[ -z "$ip" ]] && ip="N/A"
-
-    if command -v wm >/dev/null 2>&1; then
-        local size_line
-        size_line=$(wm size 2>/dev/null | grep 'Physical size')
-        if [[ -n "$size_line" ]]; then
-            screen=$(echo "$size_line" | awk '{print $3}')
-        fi
-    fi
-    if [[ -z "$screen" || "$screen" == "Unknown" ]]; then
-        if command -v dumpsys >/dev/null 2>&1; then
-            local init_line
-            init_line=$(dumpsys window displays 2>/dev/null | grep -Eo 'init=[0-9]+x[0-9]+' | head -1)
-            if [[ -n "$init_line" ]]; then
-                screen="${init_line#init=}"
-            fi
-        fi
-    fi
-    if [[ -z "$screen" || "$screen" == "Unknown" ]]; then
-        if [[ -f /sys/class/graphics/fb0/virtual_size ]]; then
-            local fb_size
-            fb_size=$(cat /sys/class/graphics/fb0/virtual_size 2>/dev/null)
-            if [[ -n "$fb_size" ]]; then
-                local w h
-                w=$(echo "$fb_size" | awk '{print $1}')
-                h=$(echo "$fb_size" | awk '{print $2}')
-                screen="${w}x${h}"
-            fi
-        fi
-    fi
-    [[ -z "$screen" ]] && screen="Unknown"
 
     local ram_kb ram_gb
     ram_kb=$(grep MemTotal /proc/meminfo 2>/dev/null | awk '{print $2}')
@@ -1090,10 +1064,10 @@ _devices_handler() {
     printf '╔════════════════════════════════════════════════════════════╗\n'
     printf '║                     DEVICE INFORMATION                     ║\n'
     printf '╠════════════════════════════════════════════════════════════╣\n'
+    printf '║ %-12s : %-42s ║\n' "Brand" "$brand"
     printf '║ %-12s : %-42s ║\n' "Model" "$model"
     printf '║ %-12s : %-42s ║\n' "Device" "$device"
     printf '║ %-12s : %-42s ║\n' "IP" "$ip"
-    printf '║ %-12s : %-42s ║\n' "Screen" "$screen"
     printf '║ %-12s : %-42s ║\n' "RAM" "$ram"
     printf '║ %-12s : %-42s ║\n' "Storage" "$storage"
     printf '║ %-12s : %-42s ║\n' "Network" "$network"

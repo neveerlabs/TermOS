@@ -527,7 +527,7 @@ precmd() {
 
     local env_part=""
     if [[ -n $VIRTUAL_ENV ]]; then
-        env_part="%F{green}($(basename $VIRTUAL_ENV))%f│"
+        env_part="%F{green}($(basename $VIRTUAL_ENV))-%f"
     fi
 
     local display_path
@@ -552,7 +552,7 @@ precmd() {
     local white="%F{white}"
     local reset="%f"
 
-    PROMPT="${green}┌───${reset}${env_part}${green}(${reset}${cyan}${USER_NAME}㉿termux${reset}${green})-[${reset}${white}${display_path}${reset}${green}]${vcs_info_msg_0_}${reset}
+    PROMPT="${green}┌───${reset}${env_part}${green}(${reset}${cyan}${USER_NAME}㉿termux${reset}${green})-[${reset}%B%F{white}${display_path}%f%b${reset}${green}]${vcs_info_msg_0_}${reset}
 ${green}└──${white}\$${reset} "
 }
 

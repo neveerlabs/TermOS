@@ -544,6 +544,36 @@ bindkey '^[[C' _accept_suggestion_or_forward_char
 bindkey '^F' autosuggest-accept
 bindkey '^[[1;3C' forward-word
 
+_autopair_insert() {
+    local open="$1" close="$2"
+    LBUFFER+="$open$close"
+    zle backward-char
+}
+
+_autopair_insert_paren() { _autopair_insert '(' ')'; }
+_autopair_insert_bracket() { _autopair_insert '[' ']'; }
+_autopair_insert_brace() { _autopair_insert '{' '}'; }
+_autopair_insert_angle() { _autopair_insert '<' '>'; }
+_autopair_insert_single() { _autopair_insert "'" "'"; }
+_autopair_insert_double() { _autopair_insert '"' '"'; }
+_autopair_insert_backtick() { _autopair_insert '`' '`'; }
+
+zle -N _autopair_insert_paren
+zle -N _autopair_insert_bracket
+zle -N _autopair_insert_brace
+zle -N _autopair_insert_angle
+zle -N _autopair_insert_single
+zle -N _autopair_insert_double
+zle -N _autopair_insert_backtick
+
+bindkey '(' _autopair_insert_paren
+bindkey '[' _autopair_insert_bracket
+bindkey '{' _autopair_insert_brace
+bindkey '<' _autopair_insert_angle
+bindkey "'" _autopair_insert_single
+bindkey '"' _autopair_insert_double
+bindkey '`' _autopair_insert_backtick
+
 command_not_found_handler() {
     case "$1" in
         --help)

@@ -1,8 +1,6 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/neveerlabs/Termux-Config/main/assets.jpg" alt="Preview" width="600">
+  <img src="https://raw.githubusercontent.com/neveerlabs/Termux-Config/main/assets.jpg" alt="Preview" width="600">Termux Preview
 </p>
-
-<p align="center">Termux Config</p>
 
 Script konfigurasi Zsh untuk Termux yang membuat tampilan dan fitur seperti terminal Linux. Fitur:
 - Autosuggestion dari history tersimpan (ghost text)

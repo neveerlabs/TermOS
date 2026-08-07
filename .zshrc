@@ -33,7 +33,7 @@ ZSH_HIGHLIGHT_STYLES[path_prefix]='fg=white,bold'
 ZSH_HIGHLIGHT_STYLES[globbing]='fg=magenta'
 
 typeset -A ZSH_HIGHLIGHT_PATTERNS
-ZSH_HIGHLIGHT_PATTERNS=('--help' 'fg=cyan,bold' '--version' 'fg=cyan,bold' '--updates' 'fg=cyan,bold' '--update' 'fg=cyan,bold' '--changelog' 'fg=cyan,bold' '--location' 'fg=cyan,bold' '--schedule' 'fg=cyan,bold' '--tocket' 'fg=cyan,bold' '--devices' 'fg=cyan,bold')
+ZSH_HIGHLIGHT_PATTERNS=('--help' 'fg=cyan,bold' '--updates' 'fg=cyan,bold' '--update' 'fg=cyan,bold' '--changelog' 'fg=cyan,bold' '--location' 'fg=cyan,bold' '--schedule' 'fg=cyan,bold' '--tocket' 'fg=cyan,bold' '--profile' 'fg=cyan,bold')
 
 if [[ -f ~/.zsh/zsh-autocomplete/zsh-autocomplete.plugin.zsh ]]; then
     source ~/.zsh/zsh-autocomplete/zsh-autocomplete.plugin.zsh
@@ -579,7 +579,6 @@ command_not_found_handler() {
         --help)
             printf '%s\n' "Available custom commands:"
             printf '%s\n' "  --help          Show this help message"
-            printf '%s\n' "  --version       Show script version"
             printf '%s\n' "  --updates [scan|install]   Check for updates (default: scan)"
             printf '%s\n' "  --update        Update configuration files"
             printf '%s\n' "  --reconfig      Re-run setup script"
@@ -587,11 +586,7 @@ command_not_found_handler() {
             printf '%s\n' "  --location      Show real-time location data"
             printf '%s\n' "  --schedule      Show prayer times schedule"
             printf '%s\n' "  --tocket        Run Tocket tool (auto-setup if needed)"
-            printf '%s\n' "  --devices       Show device information"
-            return 0
-            ;;
-        --version)
-            printf '%s\n' "$TERMUX_CONFIG_VERSION"
+            printf '%s\n' "  --profile       Show device profile & OS info"
             return 0
             ;;
         --updates)
@@ -634,8 +629,8 @@ command_not_found_handler() {
             _tocket_handler
             return 0
             ;;
-        --devices)
-            _devices_handler
+        --profile)
+            _profile_handler
             return 0
             ;;
         *)
@@ -651,6 +646,7 @@ TEMP_DIR="$HOME/.termux/tmp"
 SOUND_DIR="$TERMUX_CONFIG_DIR/sound"
 ALARM_PID_FILE="$HOME/.termux/alarm_pids.txt"
 ALARM_FLAG_FILE="$HOME/.termux/alarm_scheduled_date"
+LOCK_FILE="$HOME/.termux/.location.lock"
 
 mkdir -p "$TEMP_DIR" 2>/dev/null
 mkdir -p "$SOUND_DIR" 2>/dev/null
@@ -682,7 +678,7 @@ _ensure_sound_files() {
     local files=("alarm.mp3" "sapa.mp3" "adzan.mp3")
     for f in "${files[@]}"; do
         if [[ ! -f "$SOUND_DIR/$f" ]]; then
-            curl -fsSL --max-time 20 -o "$SOUND_DIR/$f" "$base/$f" 2>/dev/null || true
+            curl -fsSL --max-time 20 --retry 2 --retry-delay 1 -o "$SOUND_DIR/$f" "$base/$f" 2>/dev/null || true
         fi
     done
 }
@@ -727,6 +723,9 @@ _schedule_prayer_alarms() {
 
     local now_ts=$(date +%s)
     local schedule_json=$(cat "$SCHEDULE_FILE" 2>/dev/null)
+    if [[ -z "$schedule_json" ]]; then
+        return 1
+    fi
     local date_sched=$(echo "$schedule_json" | node -e "process.stdout.write(JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')).date)" 2>/dev/null)
     local today=$(date +%Y-%m-%d)
 
@@ -754,6 +753,9 @@ _schedule_prayer_alarms() {
             const t = JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')).times;
             process.stdout.write(t['$key']);
         " 2>/dev/null)
+        if [[ -z "$time_str" ]]; then
+            continue
+        fi
         local target_ts=$(date -d "$today $time_str" +%s 2>/dev/null || echo 0)
         if (( target_ts <= now_ts )); then
             continue
@@ -802,17 +804,22 @@ _fetch_location() {
     mkdir -p "$HOME/.termux" 2>/dev/null
 
     for ((i=1; i<=MAX_TRIES; i++)); do
+        local location_json
         location_json=$(termux-location 2>/dev/null) || true
         if [[ -z "$location_json" ]]; then
             sleep "$SLEEP_INTERVAL"
             continue
         fi
+        local parsed
         parsed=$(node -e "
             const d = JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'));
             if (d.error) { console.log('ERROR:' + d.error); process.exit(1); }
             console.log(d.latitude + ',' + d.longitude + ',' + (d.accuracy || 999));
         " <<< "$location_json" 2>/dev/null) || continue
         IFS=',' read -r lat lon acc <<< "$parsed"
+        if [[ -z "$lat" || -z "$lon" ]]; then
+            continue
+        fi
         if (( $(echo "$acc < $best_acc" | bc -l) )); then
             best_lat="$lat"
             best_lon="$lon"
@@ -833,7 +840,7 @@ _fetch_location() {
     lon="$best_lon"
     acc="$best_acc"
 
-    address_json=$(curl -sS --max-time 10 "https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&addressdetails=1&accept-language=id" 2>/dev/null || echo '{}')
+    address_json=$(curl -sS --max-time 10 --retry 2 --retry-delay 1 "https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&addressdetails=1&accept-language=id" 2>/dev/null || echo '{}')
 
     local kelurahan="" kecamatan="" kota=""
     kelurahan=$(echo "$address_json" | node -e "const d=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')); const a=d.address||{}; process.stdout.write(a.village||a.suburb||a.neighbourhood||a.hamlet||'')" 2>/dev/null)
@@ -873,6 +880,11 @@ _generate_schedule() {
     local lat lon
     lat=$(node -e "console.log(JSON.parse(require('fs').readFileSync('$LOCATION_FILE','utf8')).latitude)" 2>/dev/null)
     lon=$(node -e "console.log(JSON.parse(require('fs').readFileSync('$LOCATION_FILE','utf8')).longitude)" 2>/dev/null)
+
+    if [[ -z "$lat" || -z "$lon" ]]; then
+        _notify "Terjadi kesalahan!" "Error: Invalid location data."
+        return 1
+    fi
 
     local offset_hours=$(date +%z | sed 's/^+//; s/^-//; s/^0*//' | awk '{print $1/100}')
     [[ $(date +%z) == -* ]] && offset_hours="-$offset_hours"
@@ -931,6 +943,14 @@ _auto_update_schedule() {
         return 1
     fi
 
+    if [[ -f "$LOCK_FILE" ]]; then
+        local lock_pid=$(cat "$LOCK_FILE" 2>/dev/null)
+        if [[ -n "$lock_pid" ]] && kill -0 "$lock_pid" 2>/dev/null; then
+            return 0
+        fi
+    fi
+    echo $$ > "$LOCK_FILE" 2>/dev/null
+
     local today=$(date +%Y-%m-%d)
     local need_update=1
 
@@ -946,6 +966,7 @@ _auto_update_schedule() {
     fi
 
     _schedule_prayer_alarms
+    rm -f "$LOCK_FILE" 2>/dev/null
 }
 
 _tocket_handler() {
@@ -1017,73 +1038,95 @@ _tocket_handler() {
     return 0
 }
 
-_devices_handler() {
-    local brand model device ip ram storage network lang tz
+_profile_handler() {
+    local DEVICE_ID_FILE="$HOME/.termux/device_id"
+    local device_id
+    if [[ -f "$DEVICE_ID_FILE" ]]; then
+        device_id=$(cat "$DEVICE_ID_FILE" 2>/dev/null)
+        [[ -z "$device_id" ]] && device_id="Unknown"
+    else
+        if command -v node >/dev/null 2>&1; then
+            device_id=$(node -e "console.log(String(Math.floor(Math.random()*1000000000000)).padStart(12,'0'))" 2>/dev/null)
+            printf '%s\n' "$device_id" > "$DEVICE_ID_FILE" 2>/dev/null
+        else
+            device_id="000000000000"
+        fi
+    fi
 
-    brand=$(getprop ro.product.brand 2>/dev/null || getprop ro.product.manufacturer 2>/dev/null || echo "Unknown")
-    [[ -z "$brand" ]] && brand="Unknown"
+    local os_version sdk_int release_id display_id incremental tags
+    local manufacturer brand model product board hardware device_name abis
 
+    os_version=$(getprop ro.build.version.release 2>/dev/null || echo "Unknown")
+    sdk_int=$(getprop ro.build.version.sdk 2>/dev/null || echo "Unknown")
+    release_id=$(getprop ro.build.id 2>/dev/null || echo "Unknown")
+    display_id=$(getprop ro.build.display.id 2>/dev/null || echo "Unknown")
+    incremental=$(getprop ro.build.version.incremental 2>/dev/null || echo "Unknown")
+    tags=$(getprop ro.build.tags 2>/dev/null || echo "Unknown")
+
+    manufacturer=$(getprop ro.product.manufacturer 2>/dev/null || echo "Unknown")
+    brand=$(getprop ro.product.brand 2>/dev/null || echo "Unknown")
     model=$(getprop ro.product.model 2>/dev/null || echo "Unknown")
-    [[ -z "$model" ]] && model="Unknown"
+    product=$(getprop ro.product.name 2>/dev/null || echo "Unknown")
+    board=$(getprop ro.product.board 2>/dev/null || echo "Unknown")
+    hardware=$(getprop ro.hardware 2>/dev/null || echo "Unknown")
+    device_name=$(getprop ro.product.device 2>/dev/null || echo "Unknown")
+    abis=$(getprop ro.product.cpu.abilist 2>/dev/null || echo "Unknown")
 
-    local char
-    char=$(getprop ro.build.characteristics 2>/dev/null || echo "default")
-    if [[ "$char" == "tablet" ]]; then
-        device="tablet"
-    else
-        device="mobile"
-    fi
-
-    if command -v ifconfig >/dev/null 2>&1; then
-        ip=$(ifconfig wlan0 2>/dev/null | grep 'inet ' | awk '{print $2}')
-        [[ -z "$ip" ]] && ip=$(ifconfig 2>/dev/null | grep 'inet ' | grep -v 127 | awk '{print $2}' | head -1)
-    else
-        ip="N/A"
-    fi
-    [[ -z "$ip" ]] && ip="N/A"
-
-    local ram_kb ram_gb
+    local ram_kb ram_gb ram_info
     ram_kb=$(grep MemTotal /proc/meminfo 2>/dev/null | awk '{print $2}')
     if [[ -n "$ram_kb" && "$ram_kb" -gt 0 ]]; then
         ram_gb=$(echo "scale=1; $ram_kb / 1048576" | bc 2>/dev/null || echo "?")
-        ram="${ram_gb} GB"
+        ram_info="${ram_gb} GB"
     else
-        ram="Unknown"
+        ram_info="Unknown"
     fi
 
+    local storage_info
     if df -h /data >/dev/null 2>&1; then
-        storage=$(df -h /data | awk 'NR==2 {print $2}')
-        [[ -z "$storage" ]] && storage="Unknown"
+        storage_info=$(df -h /data | awk 'NR==2 {print $2}')
+        [[ -z "$storage_info" ]] && storage_info="Unknown"
     else
-        storage="Unknown"
+        storage_info="Unknown"
     fi
 
-    if [[ "$ip" != "N/A" ]] && command -v ping >/dev/null 2>&1; then
-        if ping -c 1 -W 1 8.8.8.8 >/dev/null 2>&1; then
-            network="connected"
-        else
-            network="disconnected"
-        fi
+    local ip_info
+    if command -v ifconfig >/dev/null 2>&1; then
+        ip_info=$(ifconfig wlan0 2>/dev/null | grep 'inet ' | awk '{print $2}')
+        [[ -z "$ip_info" ]] && ip_info=$(ifconfig 2>/dev/null | grep 'inet ' | grep -v 127 | awk '{print $2}' | head -1)
     else
-        network="disconnected"
+        ip_info="N/A"
     fi
+    [[ -z "$ip_info" ]] && ip_info="N/A"
 
-    lang="${LANG:-Unknown}"
-    tz=$(getprop persist.sys.timezone 2>/dev/null || date +%Z 2>/dev/null || echo "Unknown")
+    _print_styled_header "Profile"
 
-    printf '╔════════════════════════════════════════════════════════════╗\n'
-    printf '║                     DEVICE INFORMATION                     ║\n'
-    printf '╠════════════════════════════════════════════════════════════╣\n'
-    printf '║ %-12s : %-42s ║\n' "Brand" "$brand"
-    printf '║ %-12s : %-42s ║\n' "Model" "$model"
-    printf '║ %-12s : %-42s ║\n' "Device" "$device"
-    printf '║ %-12s : %-42s ║\n' "IP" "$ip"
-    printf '║ %-12s : %-42s ║\n' "RAM" "$ram"
-    printf '║ %-12s : %-42s ║\n' "Storage" "$storage"
-    printf '║ %-12s : %-42s ║\n' "Network" "$network"
-    printf '║ %-12s : %-42s ║\n' "Language" "$lang"
-    printf '║ %-12s : %-42s ║\n' "Timezone" "$tz"
-    printf '╚════════════════════════════════════════════════════════════╝\n'
+    printf 'Username   : %s\n' "$USER_NAME"
+    printf 'Role       : root\n'
+    printf 'DeviceID   : %s\n' "$device_id"
+    printf 'Version    : %s\n' "$TERMUX_CONFIG_VERSION"
+
+    _print_styled_header "Software"
+    printf 'OS Version : %s\n' "$os_version"
+    printf 'SDK INT    : %s\n' "$sdk_int"
+    printf 'Release    : %s\n' "$os_version"
+    printf 'ID         : %s\n' "$release_id"
+    printf 'Display    : %s\n' "$display_id"
+    printf 'Incremental: %s\n' "$incremental"
+    printf 'Tags       : %s\n' "$tags"
+
+    _print_styled_header "Hardware"
+    printf 'Manufacturer : %s\n' "$manufacturer"
+    printf 'Brand        : %s\n' "$brand"
+    printf 'Model        : %s\n' "$model"
+    printf 'Product      : %s\n' "$product"
+    printf 'Board        : %s\n' "$board"
+    printf 'Hardware     : %s\n' "$hardware"
+    printf 'Device       : %s\n' "$device_name"
+    printf 'Supported Abis : %s\n' "$abis"
+    printf 'RAM          : %s\n' "$ram_info"
+    printf 'Storage      : %s\n' "$storage_info"
+    printf 'IP           : %s\n' "$ip_info"
+    echo
 }
 
 _spinner() {
@@ -1111,17 +1154,32 @@ _location_realtime_handler() {
         return 1
     fi
 
-    _spinner "Fetching location..." &
-    local spinner_pid=$!
+    local max_attempts=3
+    local attempt=1
+    local location_json=""
+    local spinner_pid
 
-    local location_json
-    location_json=$(termux-location 2>/dev/null) || true
-    kill "$spinner_pid" 2>/dev/null
-    wait "$spinner_pid" 2>/dev/null
-    printf '\r\033[K'
+    while [[ $attempt -le $max_attempts ]]; do
+        _spinner "Fetching location (attempt $attempt/$max_attempts)..." &
+        spinner_pid=$!
+
+        location_json=$(termux-location 2>/dev/null) || true
+
+        kill $spinner_pid 2>/dev/null
+        wait $spinner_pid 2>/dev/null
+        printf '\r\033[K'
+
+        if [[ -n "$location_json" ]]; then
+            if echo "$location_json" | node -e "JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'));" 2>/dev/null; then
+                break
+            fi
+        fi
+        ((attempt++))
+        sleep 1
+    done
 
     if [[ -z "$location_json" ]]; then
-        printf 'Error: Unable to fetch location. Ensure GPS is enabled and permissions are granted.\n'
+        printf 'Error: Unable to fetch location after %d attempts. Ensure GPS is enabled and permissions are granted.\n' "$max_attempts"
         return 1
     fi
 
@@ -1136,13 +1194,17 @@ _location_realtime_handler() {
         return 1
     }
     IFS=',' read -r lat lon acc <<< "$parsed"
+    if [[ -z "$lat" || -z "$lon" ]]; then
+        printf 'Error: Incomplete location data.\n'
+        return 1
+    fi
 
     _spinner "Reverse geocoding..." &
     spinner_pid=$!
     local address_json
-    address_json=$(curl -sS --max-time 10 "https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&addressdetails=1&accept-language=id" 2>/dev/null || echo '{}')
-    kill "$spinner_pid" 2>/dev/null
-    wait "$spinner_pid" 2>/dev/null
+    address_json=$(curl -sS --max-time 10 --retry 2 --retry-delay 1 "https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&addressdetails=1&accept-language=id" 2>/dev/null || echo '{}')
+    kill $spinner_pid 2>/dev/null
+    wait $spinner_pid 2>/dev/null
     printf '\r\033[K'
 
     local road house_number village suburb county district city state country postcode

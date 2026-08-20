@@ -7,17 +7,13 @@
 //  Copyright (c) 2007-2025 Hamid Zarrabi-Zadeh
 
 /*
----------------------( ChronoDeck-v2.3.1.0 - Integrated Prayer Times & Music Player )---------------------
-    Developed by  : M. Syalman Al Farizi
-    GitHub        : https://github.com/neveerlabs And https://github.com/nflora-ux
-    Contact       : userlinuxorg@gmail.com
-    Version       : v2.3.1.0
-    Powered by    : DeepSeek-V3
-    Description   : Aplikasi pemutar musik dengan alarm adzan otomatis,
-                    jadwal sholat real-time berdasarkan koordinat dan zona waktu.
-    Dependencies  : PrayTimes.js v3.2 (https://praytimes.org)
-    License       : MIT
-    Source        : https://nflora-ux.github.com/ChronoDeck
+---------------------( TermOS - Terminal linux based )---------------------
+    Developed by    : M. Syalman Al Farizi (Salman)
+    GitHub          : https://github.com/neveerlabs/
+    Contact         : userlinuxorg@gmail.com
+    Version startup : v4.2.7-release
+    Dependencies    : PrayTimes.js v3.2 (https://praytimes.org)
+    Source          : https://github.com/neveerlabs/TermOS/
 
     Terima kasih kepada Hamid Zarrabi-Zadeh atas PrayTimes.js.
     Copyright (c) 2026 Neverlabs. All right reserved.

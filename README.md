@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/neveerlabs/TermOS/main/assets.jpg" alt="Preview" width="600">TermOS Preview
+  <img src="https://raw.githubusercontent.com/neveerlabs/TermOS/main/assets.jpg" alt="Preview" width="600">
 </p>
 
 Script konfigurasi Zsh untuk Termux yang membuat tampilan dan fitur seperti terminal Linux. Fitur:

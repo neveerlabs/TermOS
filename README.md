@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/neveerlabs/Termux-Config/main/assets.jpg" alt="Preview" width="600">TermOS Preview
+  <img src="https://raw.githubusercontent.com/neveerlabs/TermOS/main/assets.jpg" alt="Preview" width="600">TermOS Preview
 </p>
 
 Script konfigurasi Zsh untuk Termux yang membuat tampilan dan fitur seperti terminal Linux. Fitur:
@@ -16,10 +16,10 @@ Script konfigurasi Zsh untuk Termux yang membuat tampilan dan fitur seperti term
 Jalankan perintah berikut di Termux:
 ```bash
 # Clone repositori:
-git clone https://github.com/neveerlabs/Termux-Config.git
+git clone https://github.com/neveerlabs/TermOS.git
 
 # Masuk kedalam folder:
-cd Termux-Config
+cd TermOS
 
 # Beri izin eksekusi:
 chmod +x config.sh

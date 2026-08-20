@@ -84,7 +84,7 @@ if [[ "$ENABLE_MYSQL" == "yes" ]]; then
     fi
 fi
 
-TERMUX_CONFIG_DIR="$HOME/Termux-Config"
+TERMUX_CONFIG_DIR="$HOME/TermOS"
 _update_check_done=0
 
 _download_with_progress() {
@@ -157,7 +157,7 @@ _get_remote_version() {
         return 1
     fi
     local remote_zshrc
-    remote_zshrc=$(curl -fsSL --max-time 10 "https://raw.githubusercontent.com/neveerlabs/Termux-Config/main/.zshrc" 2>/dev/null)
+    remote_zshrc=$(curl -fsSL --max-time 10 "https://raw.githubusercontent.com/neveerlabs/TermOS/main/.zshrc" 2>/dev/null)
     if [[ -z "$remote_zshrc" ]]; then
         return 1
     fi
@@ -212,7 +212,7 @@ _show_changelog_since() {
     local changelog_file="$TERMUX_CONFIG_DIR/Changelog.json"
     local changelog_json
     if command -v curl >/dev/null 2>&1; then
-        changelog_json=$(curl -fsSL --max-time 10 "https://raw.githubusercontent.com/neveerlabs/Termux-Config/main/Changelog.json" 2>/dev/null)
+        changelog_json=$(curl -fsSL --max-time 10 "https://raw.githubusercontent.com/neveerlabs/TermOS/main/Changelog.json" 2>/dev/null)
         if [[ -n "$changelog_json" ]]; then
             printf '%s\n' "$changelog_json" > "$changelog_file"
         fi
@@ -271,7 +271,7 @@ _show_current_changelog() {
     local changelog_file="$TERMUX_CONFIG_DIR/Changelog.json"
     local changelog_json
     if command -v curl >/dev/null 2>&1; then
-        changelog_json=$(curl -fsSL --max-time 10 "https://raw.githubusercontent.com/neveerlabs/Termux-Config/main/Changelog.json" 2>/dev/null)
+        changelog_json=$(curl -fsSL --max-time 10 "https://raw.githubusercontent.com/neveerlabs/TermOS/main/Changelog.json" 2>/dev/null)
         if [[ -n "$changelog_json" ]]; then
             printf '%s\n' "$changelog_json" > "$changelog_file"
         fi
@@ -351,7 +351,7 @@ _update_plugins() {
 }
 
 _perform_update() {
-    local base_url="https://raw.githubusercontent.com/neveerlabs/Termux-Config/main"
+    local base_url="https://raw.githubusercontent.com/neveerlabs/TermOS/main"
     local update_failed=0
     mkdir -p "$TERMUX_CONFIG_DIR"
     _download_with_progress "$base_url/.zshrc" "$HOME/.zshrc.tmp" || update_failed=1
@@ -674,7 +674,7 @@ _notify() {
 }
 
 _ensure_sound_files() {
-    local base="https://raw.githubusercontent.com/neveerlabs/Termux-Config/main/sound"
+    local base="https://raw.githubusercontent.com/neveerlabs/TermOS/main/sound"
     local files=("alarm.mp3" "sapa.mp3" "adzan.mp3")
     for f in "${files[@]}"; do
         if [[ ! -f "$SOUND_DIR/$f" ]]; then

@@ -33,7 +33,7 @@ ZSH_HIGHLIGHT_STYLES[path_prefix]='fg=white,bold'
 ZSH_HIGHLIGHT_STYLES[globbing]='fg=magenta'
 
 typeset -A ZSH_HIGHLIGHT_PATTERNS
-ZSH_HIGHLIGHT_PATTERNS=('--help' 'fg=cyan,bold' '--updates' 'fg=cyan,bold' '--update' 'fg=cyan,bold' '--changelog' 'fg=cyan,bold' '--location' 'fg=cyan,bold' '--schedule' 'fg=cyan,bold' '--tocket' 'fg=cyan,bold' '--profile' 'fg=cyan,bold')
+ZSH_HIGHLIGHT_PATTERNS=('--help' 'fg=cyan,bold' '--updates' 'fg=cyan,bold' '--update' 'fg=cyan,bold' '--reconfig' 'fg=cyan,bold' '--changelog' 'fg=cyan,bold' '--location' 'fg=cyan,bold' '--schedule' 'fg=cyan,bold' '--tocket' 'fg=cyan,bold' '--profile' 'fg=cyan,bold')
 
 if [[ -f ~/.zsh/zsh-autocomplete/zsh-autocomplete.plugin.zsh ]]; then
     source ~/.zsh/zsh-autocomplete/zsh-autocomplete.plugin.zsh
@@ -74,6 +74,9 @@ fi
 if [ -z "$UPDATE_CHECK" ]; then
     UPDATE_CHECK="yes"
 fi
+if [ -z "$ENABLE_NOTIFICATIONS" ]; then
+    ENABLE_NOTIFICATIONS="yes"
+fi
 
 if [[ "$ENABLE_MYSQL" == "yes" ]]; then
     if command -v mysqld >/dev/null 2>&1 || command -v mariadbd >/dev/null 2>&1; then
@@ -86,6 +89,25 @@ fi
 
 TERMUX_CONFIG_DIR="$HOME/TermOS"
 _update_check_done=0
+
+_check_repo_available() {
+    local base_url="$1"
+    local spinner_pid
+    local result=1
+
+    _spinner "Trying to connect..." >&2 &
+    spinner_pid=$!
+
+    if curl -Is --max-time 5 --retry 1 "$base_url" >/dev/null 2>&1; then
+        result=0
+    fi
+
+    kill $spinner_pid 2>/dev/null
+    wait $spinner_pid 2>/dev/null
+    printf '\r\033[K' >&2
+
+    return $result
+}
 
 _download_with_progress() {
     local url="$1"
@@ -156,8 +178,9 @@ _get_remote_version() {
     if ! command -v curl >/dev/null 2>&1; then
         return 1
     fi
+    local base_url="https://raw.githubusercontent.com/neveerlabs/TermOS/main"
     local remote_zshrc
-    remote_zshrc=$(curl -fsSL --max-time 10 "https://raw.githubusercontent.com/neveerlabs/TermOS/main/.zshrc" 2>/dev/null)
+    remote_zshrc=$(curl -fsSL --max-time 10 "$base_url/.zshrc" 2>/dev/null)
     if [[ -z "$remote_zshrc" ]]; then
         return 1
     fi
@@ -337,6 +360,51 @@ _print_styled_header() {
     printf '%s\n' "$line"
 }
 
+_read_placeholder() {
+    local prompt="$1"
+    local placeholder="$2"
+    local __resultvar="$3"
+    local buffer=""
+    local char
+    local placeholder_visible=1
+    local old_stty
+
+    printf '%s' "$prompt"
+    printf '\e[2m%s\e[0m' "$placeholder"
+    (( ${#placeholder} > 0 )) && printf '\e[%dD' "${#placeholder}"
+
+    exec </dev/tty
+    old_stty=$(stty -g)
+    trap 'stty "$old_stty"; printf "\n"; return 1' INT
+    stty -echo -icanon time 0 min 1
+
+    while true; do
+        char=""
+        read -k 1 char
+        if [[ "$char" == $'\n' || "$char" == $'\r' ]]; then
+            break
+        elif [[ "$char" == $'\x7f' || "$char" == $'\x08' ]]; then
+            if [[ -n "$buffer" ]]; then
+                buffer="${buffer%?}"
+                printf '\b \b'
+            fi
+            continue
+        else
+            if (( placeholder_visible )); then
+                printf '\e[0K'
+                placeholder_visible=0
+            fi
+            buffer+="$char"
+            printf '%s' "$char"
+        fi
+    done
+
+    stty "$old_stty"
+    trap - INT
+    printf '\n'
+    typeset -g "$__resultvar"="$buffer"
+}
+
 _update_plugins() {
     local plugins=(
         "$HOME/.zsh/zsh-autosuggestions"
@@ -352,6 +420,10 @@ _update_plugins() {
 
 _perform_update() {
     local base_url="https://raw.githubusercontent.com/neveerlabs/TermOS/main"
+    if ! _check_repo_available "$base_url"; then
+        printf 'Repository not reachable. Cannot perform update.\n'
+        return 1
+    fi
     local update_failed=0
     mkdir -p "$TERMUX_CONFIG_DIR"
     _download_with_progress "$base_url/.zshrc" "$HOME/.zshrc.tmp" || update_failed=1
@@ -379,6 +451,11 @@ _perform_update() {
 _scan_updates_output() {
     if ! command -v curl >/dev/null 2>&1; then
         printf 'curl is required.\n'
+        return 1
+    fi
+    local base_url="https://raw.githubusercontent.com/neveerlabs/TermOS/main"
+    if ! _check_repo_available "$base_url"; then
+        printf 'Repository not reachable. Check your internet or repository URL.\n'
         return 1
     fi
     local remote_version
@@ -574,6 +651,13 @@ bindkey "'" _autopair_insert_single
 bindkey '"' _autopair_insert_double
 bindkey '`' _autopair_insert_backtick
 
+_terms_autocomplete() {
+    local -a commands
+    commands=('--help' '--updates' '--update' '--reconfig' '--changelog' '--location' '--schedule' '--tocket' '--profile')
+    _describe 'TermOS commands' commands
+}
+compdef _terms_autocomplete ''
+
 command_not_found_handler() {
     case "$1" in
         --help)
@@ -581,7 +665,7 @@ command_not_found_handler() {
             printf '%s\n' "  --help          Show this help message"
             printf '%s\n' "  --updates [scan|install]   Check for updates (default: scan)"
             printf '%s\n' "  --update        Update configuration files"
-            printf '%s\n' "  --reconfig      Re-run setup script"
+            printf '%s\n' "  --reconfig      Interactive reconfiguration"
             printf '%s\n' "  --changelog     Show changelog for current version"
             printf '%s\n' "  --location      Show real-time location data"
             printf '%s\n' "  --schedule      Show prayer times schedule"
@@ -605,12 +689,7 @@ command_not_found_handler() {
             return 0
             ;;
         --reconfig)
-            if [[ -f "$TERMUX_CONFIG_DIR/config.sh" ]]; then
-                bash "$TERMUX_CONFIG_DIR/config.sh"
-            else
-                printf 'Config script not found. Run --update to fetch it.\n'
-                return 1
-            fi
+            _reconfig_handler
             return 0
             ;;
         --changelog)
@@ -662,6 +741,9 @@ _find_praytimes() {
 }
 
 _notify() {
+    if [[ "$ENABLE_NOTIFICATIONS" != "yes" ]]; then
+        return
+    fi
     local title="$1"
     local message="$2"
     if command -v termux-notification >/dev/null 2>&1; then
@@ -971,8 +1053,8 @@ _auto_update_schedule() {
 
 _tocket_handler() {
     local TOCKET_DIR="$HOME/Tocket"
-    local MAIN_PY="$TOCKET_DIR/Tocket/main.py"
-    local REQ_FILE="$TOCKET_DIR/Tocket/requirements.txt"
+    local MAIN_PY="$TOCKET_DIR/main.py"
+    local REQ_FILE="$TOCKET_DIR/requirements.txt"
     local VENV_DIR=""
     local PYTHON_BIN=""
     local PIP_BIN=""
@@ -1092,9 +1174,12 @@ _profile_handler() {
     local ip_info
     if command -v ifconfig >/dev/null 2>&1; then
         ip_info=$(ifconfig wlan0 2>/dev/null | grep 'inet ' | awk '{print $2}')
-        [[ -z "$ip_info" ]] && ip_info=$(ifconfig 2>/dev/null | grep 'inet ' | grep -v 127 | awk '{print $2}' | head -1)
-    else
-        ip_info="N/A"
+        if [[ -z "$ip_info" ]]; then
+            ip_info=$(ifconfig 2>/dev/null | grep 'inet ' | grep -v 127 | awk '{print $2}' | head -1)
+        fi
+    fi
+    if [[ -z "$ip_info" ]]; then
+        ip_info=$(curl -s --max-time 3 ifconfig.me 2>/dev/null)
     fi
     [[ -z "$ip_info" ]] && ip_info="N/A"
 
@@ -1131,7 +1216,7 @@ _profile_handler() {
 
 _spinner() {
     local msg="$1"
-    local chars="⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+    local chars="|/-\\"
     while true; do
         for (( i=0; i<${#chars}; i++ )); do
             printf "\r%s %s" "${chars:$i:1}" "$msg"
@@ -1271,4 +1356,84 @@ _schedule_display_handler() {
     [[ -n "$county" ]] && printf 'District    : %s\n' "$county"
     [[ -n "$city" ]] && printf 'City        : %s\n' "$city"
     echo
+}
+
+_reconfig_handler() {
+    local config_file="$HOME/.zsh_config"
+    local temp_file="$HOME/.zsh_config.tmp"
+    local cols
+
+    if [[ -f "$config_file" ]]; then
+        source "$config_file"
+    fi
+
+    : ${USER_NAME:="user"}
+    : ${ENABLE_MYSQL:="yes"}
+    : ${UPDATE_CHECK:="yes"}
+    : ${ENABLE_NOTIFICATIONS:="yes"}
+
+    trap 'echo -e "\nReconfiguration canceled."; return 1' INT
+
+    cols=$(stty size 2>/dev/null | awk '{print $2}')
+    [[ -z "$cols" || "$cols" -lt 10 ]] && cols=80
+
+    local header="TermOS Reconfiguration"
+    local sub="Press Ctrl+C at any time to cancel"
+    local header_len=${#header}
+    local sub_len=${#sub}
+    local pad_header=$(( (cols - header_len) / 2 ))
+    local pad_sub=$(( (cols - sub_len) / 2 ))
+    (( pad_header < 0 )) && pad_header=0
+    (( pad_sub < 0 )) && pad_sub=0
+
+    printf "%*s%s\n" "$pad_header" "" "$header"
+    printf "%*s%s\n" "$pad_sub" "" "$sub"
+    printf '%*s\n' "$cols" '' | tr ' ' '-'
+    echo
+
+    _read_placeholder "Update username? [current: $USER_NAME]: " "y or n" ans
+    if [[ "$ans" == "y" || "$ans" == "Y" ]]; then
+        read -r "new_name?Enter new username: "
+        if [[ -n "$new_name" ]]; then
+            USER_NAME="$new_name"
+        fi
+    fi
+
+    _read_placeholder "Toggle Auto-Start MySQL? [current: $ENABLE_MYSQL]: " "y or n" ans
+    if [[ "$ans" == "y" || "$ans" == "Y" ]]; then
+        if [[ "$ENABLE_MYSQL" == "yes" ]]; then
+            ENABLE_MYSQL="no"
+        else
+            ENABLE_MYSQL="yes"
+        fi
+    fi
+
+    _read_placeholder "Toggle Update Check on startup? [current: $UPDATE_CHECK]: " "y or n" ans
+    if [[ "$ans" == "y" || "$ans" == "Y" ]]; then
+        if [[ "$UPDATE_CHECK" == "yes" ]]; then
+            UPDATE_CHECK="no"
+        else
+            UPDATE_CHECK="yes"
+        fi
+    fi
+
+    _read_placeholder "Toggle Notifications (prayer alarms, location updates)? [current: $ENABLE_NOTIFICATIONS]: " "y or n" ans
+    if [[ "$ans" == "y" || "$ans" == "Y" ]]; then
+        if [[ "$ENABLE_NOTIFICATIONS" == "yes" ]]; then
+            ENABLE_NOTIFICATIONS="no"
+        else
+            ENABLE_NOTIFICATIONS="yes"
+        fi
+    fi
+
+    {
+        echo "USER_NAME=$USER_NAME"
+        echo "ENABLE_MYSQL=$ENABLE_MYSQL"
+        echo "UPDATE_CHECK=$UPDATE_CHECK"
+        echo "ENABLE_NOTIFICATIONS=$ENABLE_NOTIFICATIONS"
+    } > "$temp_file"
+
+    mv "$temp_file" "$config_file"
+    echo "Configuration updated successfully."
+    trap - INT
 }

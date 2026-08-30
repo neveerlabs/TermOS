@@ -166,6 +166,14 @@ else
 fi
 grep -q "^UPDATE_CHECK=" ~/.zsh_config 2>/dev/null && sed -i "s/^UPDATE_CHECK=.*/UPDATE_CHECK=$UPDATE_CHECK/" ~/.zsh_config || echo "UPDATE_CHECK=$UPDATE_CHECK" >> ~/.zsh_config
 
+read -rp "[?] Enable notifications (prayer alarms, location updates)? (y/n): " notif_auto
+if [[ "$notif_auto" =~ ^[Yy] ]]; then
+    ENABLE_NOTIFICATIONS="yes"
+else
+    ENABLE_NOTIFICATIONS="no"
+fi
+grep -q "^ENABLE_NOTIFICATIONS=" ~/.zsh_config 2>/dev/null && sed -i "s/^ENABLE_NOTIFICATIONS=.*/ENABLE_NOTIFICATIONS=$ENABLE_NOTIFICATIONS/" ~/.zsh_config || echo "ENABLE_NOTIFICATIONS=$ENABLE_NOTIFICATIONS" >> ~/.zsh_config
+
 if [ "$SHELL" != "$(which zsh)" ]; then
     echo -e "${GREEN}[+] Changing default shell to zsh...${NC}"
     chsh -s zsh

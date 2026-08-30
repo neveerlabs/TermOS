@@ -186,9 +186,16 @@ if ! grep -q "exec zsh -l" ~/.bashrc; then
     echo -e "${GREEN}[+] Zsh will now load automatically when you restart Termux.${NC}"
 fi
 
-echo -e "${CYAN}${BOLD}[*] Setup complete.${NC}"
+width=$(tput cols 2>/dev/null || echo 80)
+title="IMPORTANT NOTES"
+padding=$(( (width - ${#title}) / 2 ))
+if [ $padding -lt 0 ]; then padding=0; fi
+
+printf "%*s%s\n" "$padding" "" "$title"
+
+printf '%*s\n' "$width" '' | tr ' ' '-'
 echo ""
-echo -e "${CYAN}${BOLD}=========== IMPORTANT NOTES ===========${NC}"
+
 echo -e "1. Make sure Termux:API app is installed from F-Droid and permissions are granted (especially Location)."
 echo -e "2. Run 'termux-location' once to trigger the location permission popup."
 echo -e "3. To manually check prayer times, use commands: --location, --schedule, --update, --changelog"
@@ -197,4 +204,6 @@ echo -e "5. Restart Termux or run 'exec zsh' to start using the new configuratio
 if [ "$VENV_CREATED" = true ]; then
     echo -e "6. A Python virtual environment was created at ~/venv. To use it, run: source ~/venv/bin/activate"
 fi
-echo -e "${CYAN}${BOLD}=======================================${NC}"
+echo ""
+
+printf '%*s\n' "$width" '' | tr ' ' '-'

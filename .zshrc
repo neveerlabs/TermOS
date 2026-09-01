@@ -38,6 +38,7 @@ ZSH_HIGHLIGHT_PATTERNS=('--help' 'fg=cyan,bold' '--updates' 'fg=cyan,bold' '--up
 if [[ -f ~/.zsh/zsh-autocomplete/zsh-autocomplete.plugin.zsh ]]; then
     source ~/.zsh/zsh-autocomplete/zsh-autocomplete.plugin.zsh
 fi
+
 zstyle ':autocomplete:*' min-input 1
 zstyle ':autocomplete:*' history-search yes
 zstyle ':autocomplete:*' insert-unambiguous no
@@ -52,27 +53,8 @@ if zle -l autocomplete >/dev/null 2>&1; then
     bindkey -M autocomplete '^F' autosuggest-accept
 fi
 
-if ! typeset -f _autocomplete__history_lines >/dev/null 2>&1; then
-    _autocomplete__history_lines() {
-        if ! zle; then
-            return 0
-        fi
-        zle history-beginning-search-backward
-    }
-    zle -N _autocomplete__history_lines
-fi
-
-if ! typeset -f _autocomplete__unambiguous >/dev/null 2>&1; then
-    _autocomplete__unambiguous() {
-        return 0
-    }
-fi
-
-if [[ -n "$terminfo[kcuu1]" ]]; then
-    bindkey "$terminfo[kcuu1]" _autocomplete__history_lines 2>/dev/null
-else
-    bindkey '^[[A' _autocomplete__history_lines 2>/dev/null
-fi
+bindkey '^[[A' up-line-or-history
+bindkey '^[[B' down-line-or-history
 
 ZSH_PLUGINS_DIR="$HOME/.zsh/plugins"
 if [[ -d "$ZSH_PLUGINS_DIR" ]]; then
